@@ -1,8 +1,7 @@
-import exp from 'constants'
 import express from 'express'
 import http from 'http'
 
-const app = expres()
+const app = express()
 const server = http.createServer(app)
 
 var port = process.env.PORT || 5000
