@@ -36,6 +36,11 @@ sockets.on('connection', (socket) => {
     socket.on('movePlayer', (command) => {
         game.movePlayer(command)
     })
+
+    socket.on('reconnect', () => {
+        game.addPlayer( { playerId } )
+        console.log(`> Player REconnected: ${playerId}`)
+    })
 })
 
 server.listen(port, () => {

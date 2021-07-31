@@ -1,25 +1,35 @@
 import { PointObject, Rectangule, QuadTree } from './QuadTree.cjs'
 
+function getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min) + min); //The maximum is exclusive and the minimum is inclusive
+}
+
 export default function createGame() {
     let iniTime = new Date()
 
     const colors = [
-        '#000000', // preto
-        '#800000', // marrom
+        '#fff700', // amarelo
         '#FF0000', // vermelho
-        '#800080', // roxo
+        '#bf00ff', // roxo
         '#FF00FF', // rosa
         '#00FF00', // verde limão
-        '#0000FF', // azul
         '#00FFFF'  // azul claro
     ]
+
+    const MINSPEED = 5
+    const INISPEED = 20
+    const MAXFRUITS = 50
+    const TIMEBOMB = 5 // seconds
 
     const state = {
         players: {},
         fruits: {},
+        bombs: [],
         screen: {
-            width: 100,
-            height: 100
+            width: 50,
+            height: 50
         }
     }
 
@@ -53,10 +63,9 @@ export default function createGame() {
         const playerY = (command.playerY) ? command.playerY : Math.floor(Math.random() * (state.screen.height))
         const playerColor = (command.playerColor) ? command.playerColor : colors[ Math.floor( Math.random() * colors.length ) ]
         const playerLastMove = (command.playerLastMove) ? command.playerLastMove : Object.keys(acceptedKeys)[Math.floor(Math.random() * Object.keys(acceptedKeys).length)]
-        const playerSpeed = (command.playerSpeed) ? command.playerSpeed : 3
+        const playerSpeed = (command.playerSpeed) ? command.playerSpeed : INISPEED
         const playerScore = (command.playerScore) ? command.playerScore : 0
         const playerHistory = (command.playerHistory) ? command.playerHistory : []
-        const playerMoved = true
 
         state.players[playerId] = {
             id: playerId,
@@ -69,7 +78,6 @@ export default function createGame() {
             speed: playerSpeed,
             score: playerScore,
             history: playerHistory,
-            moved: playerMoved,
             type: 'player'
         }
 
@@ -87,10 +95,47 @@ export default function createGame() {
     }
 
     function addFruit(command) {
-        const fruitId = (command.fruitId) ? command.fruitId : Math.floor(Math.random() * state.screen.width * state.screen.height)
-        const fruitX = (command.fruitX) ? command.fruitX : Math.floor(Math.random() * (state.screen.width ))
-        const fruitY = (command.fruitY) ? command.fruitY : Math.floor(Math.random() * (state.screen.height))
+        let fruitList = Object.keys(state.fruits)
 
+        let fruitId = (command.fruitId) ? command.fruitId : (fruitList.length == 0) ? 0 : parseInt(fruitList[fruitList.length - 1]) + 1
+        let fruitX = (command.fruitX) ? command.fruitX : -1
+        let fruitY = (command.fruitY) ? command.fruitY : -1
+        
+        for (let i = 0; i <= 10 && fruitX == -1 && fruitY == -1; i++) {
+            let range = new Rectangule(getRandomInt(1, state.screen.width), getRandomInt(1, state.screen.height), 1, 1)
+            let objs = state.qTree.query(range)
+
+            if (objs.length < 9) {
+                let validPos = true
+                for (let x = range.x - 1; x <= range.x + 1; x++) {
+                    for (let y = range.y - 1; y <= range.y + 1; y++) {
+                        validPos = true
+
+                        for (let o of objs) {
+                            if (x == o.x && y == o.y) {
+                                validPos = false
+                                break
+                            }
+                        }
+
+                        if (validPos) {
+                            fruitX = x
+                            fruitY = y
+                            break
+                        }
+                    }
+
+                    if (validPos) {
+                        break
+                    }
+                }
+            }
+
+            if (i == 10 ) {
+                return
+            }
+        }
+        
         state.fruits[fruitId] = {
             id: fruitId,
             x: fruitX,
@@ -109,11 +154,15 @@ export default function createGame() {
         if (!player) { return }
 
         player.score = player.score + 1
+        
+        if (player.speed > MINSPEED) {
+            player.speed -= 0.1
+        }
 
         player.history.push(
             { 
-                axie: ( player.lastMove.includes('Up') || player.lastMove.includes('Down') ) ? 'y' : 'x',
-                direction: ( player.lastMove.includes('Right') || player.lastMove.includes('Down') ) ? -1 : 1,
+                axie: (player.history.length > 0) ? player.history[player.history.length - 1].axie : (player.lastMove.includes('Up') || player.lastMove.includes('Down') ) ? 'y' : 'x' ,
+                direction: (player.history.length > 0) ? 0 : ( player.lastMove.includes('Right') || player.lastMove.includes('Down') ) ? -1 : 1,
                 type: 'history',
                 id: player.id 
             }
@@ -132,16 +181,64 @@ export default function createGame() {
             player.history[0].axie = ( player.lastMove.includes('Up') || player.lastMove.includes('Down') ) ? 'y' : 'x'
             player.history[0].direction = ( player.lastMove.includes('Right') || player.lastMove.includes('Down') ) ? -1 : 1
         }
+    }
 
-        console.log(player)
+    function addBomb(player) {
+        player.score -= 1
+        
+        let x = player.x
+        let y = player.y
+
+        for (let h of player.history) {
+            if (h.axie == 'x') {
+                x += h.direction
+
+                if (x < 0) {
+                    x = state.screen.width - 1
+                } else if (x >= state.screen.width) {
+                    x = 0
+                }
+            } else {
+                y += h.direction
+                if (y < 0) {
+                    y = state.screen.height - 1
+                } else if (y >= state.screen.height) {
+                    y = 0
+                }
+            }
+        }
+
+        state.bombs.push({
+            x: x,
+            y: y,
+            player: player.id,
+            time: new Date(),
+            type: 'bomb'
+        })
+
+        player.history.splice(player.history.length - 1, 1)
+    }
+
+    function updateBombs() {
+        for(let b in state.bombs) {
+            let bomb = state.bombs[b]
+
+            if (iniTime - bomb.time >= TIMEBOMB * 1000) {
+                addFruit({ fruitX: bomb.x, fruitY: bomb.y })
+                state.bombs.splice(b, 1)
+            }
+        }
     }
 
     const acceptedKeys = {
         ArrowUp(player) {
-            if (player.moved && player.lastMove != 'ArrowDownMove') {
-                player.lastMove = 'ArrowUpMove'
-                player.moved = false
+            if (player.history.length > 0) {
+                if (player.history[0].axie == 'y' && player.history[0].direction == -1) {
+                    return
+                }
             }
+
+            player.lastMove = 'ArrowUpMove'
         },
         ArrowUpMove(player, params) {
             player.fy = ((player.fy - params.distance) < 0) ? state.screen.height - params.distance + player.fy : player.fy - params.distance
@@ -155,10 +252,13 @@ export default function createGame() {
             player.moved = true
         },
         ArrowDown(player) {
-            if (player.moved && player.lastMove != 'ArrowUpMove') {
-                player.lastMove = 'ArrowDownMove'
-                player.moved = false
+            if (player.history.length > 0) {
+                if (player.history[0].axie == 'y' && player.history[0].direction == 1) {
+                    return
+                }
             }
+            
+            player.lastMove = 'ArrowDownMove'
         },
         ArrowDownMove(player, params) {
             player.fy = (player.fy + params.distance >= state.screen.height) ? params.distance - (state.screen.height - player.fy) : player.fy + params.distance
@@ -172,10 +272,12 @@ export default function createGame() {
             player.moved = true
         },
         ArrowLeft(player) {
-            if (player.moved && player.lastMove != 'ArrowRightMove') {
-                player.lastMove = 'ArrowLeftMove'
-                player.moved = false
+            if (player.history.length > 0) {
+                if (player.history[0].axie == 'x' && player.history[0].direction == -1) {
+                    return
+                }
             }
+            player.lastMove = 'ArrowLeftMove'
         },
         ArrowLeftMove(player, params) {
             player.fx = (player.fx - params.distance < 0) ? state.screen.width - params.distance + player.fx : player.fx - params.distance
@@ -189,10 +291,12 @@ export default function createGame() {
             player.moved = true
         },
         ArrowRight(player) {
-            if (player.moved && player.lastMove != 'ArrowLeftMove') {
-                player.lastMove = 'ArrowRightMove'
-                player.moved = false
+            if (player.history.length > 0) {
+                if (player.history[0].axie == 'x' && player.history[0].direction == 1) {
+                    return
+                }
             }
+            player.lastMove = 'ArrowRightMove'
         },
         ArrowRightMove(player, params) {
             player.fx = (player.fx + params.distance >= state.screen.width) ? params.distance - (state.screen.width - player.fx) : player.fx + params.distance
@@ -204,6 +308,11 @@ export default function createGame() {
             player.x = Math.floor(player.fx)
             
             player.moved = true
+        },
+        b(player) {
+            if (player.history.length > 0) {
+                addBomb(player)
+            }
         }
     }
 
@@ -216,7 +325,6 @@ export default function createGame() {
             moveFunction(player, command.params)
             loadQTree(state)
             verifyPlayerColision(player)
-            verifyFruitColision(player)
         }
     }
     
@@ -225,7 +333,7 @@ export default function createGame() {
 
         let range = new Rectangule(player.x, player.y, 1, 1)
         let objs = state.qTree.query(range)
-        //console.log(objs)
+
         for (const o of objs) {
             if (
                 o.source.type == 'player' &&
@@ -233,7 +341,6 @@ export default function createGame() {
                 o.x == player.x &&
                 o.y == player.y
             ) {
-                console.log(o)
                 removePlayer({playerId: player.id})
                 addScore(state.players[o.source.id])
                 break
@@ -242,29 +349,38 @@ export default function createGame() {
                 o.x == player.x && 
                 o.y == player.y
             ) {
-                console.log(o)
                 removePlayer({playerId: player.id})
                 addScore(state.players[o.source.id])
                 break
-            }
-        }
-    }
-
-    function verifyFruitColision(player) {
-        if (!player) { return }
-
-        let range = new Rectangule(player.x, player.y, 1, 1)
-        let objs = state.qTree.query(range)
-
-        for (const o of objs) {
-            if (o.source.type == 'fruit' &&
+            }else if (o.source.type == 'fruit' &&
                 player.x == o.x &&
                 player.y == o.y) {
                     removeFruit({fruitId: o.source.id})
                     addScore(player)
+            }else if (o.source.type == 'bomb' &&
+                player.x == o.x &&
+                player.y == o.y) {
+                    removePlayer({playerId: player.id})
+                    addScore(state.players[o.source.player])
             }
         }
     }
+
+    // function verifyFruitColision(player) {
+    //     if (!player) { return }
+
+    //     let range = new Rectangule(player.x, player.y, 1, 1)
+    //     let objs = state.qTree.query(range)
+
+    //     for (const o of objs) {
+    //         if (o.source.type == 'fruit' &&
+    //             player.x == o.x &&
+    //             player.y == o.y) {
+    //                 removeFruit({fruitId: o.source.id})
+    //                 addScore(player)
+    //         }
+    //     }
+    // }
 
     function startGameTimer() {
         let tmpTime = new Date()
@@ -273,22 +389,18 @@ export default function createGame() {
         
         for (const playerId in state.players) {
             const player = state.players[playerId]
-            
-            //if (player.MoveCount == Math.floor((player.score)/10)+1) {
-                movePlayer({playerId: playerId, keyPressed: player.lastMove, params: { distance: durringTime * player.speed }})
-                //player.MoveCount = 0
-            //} else {
-            //    player.MoveCount = player.MoveCount + 1 //(Math.floor(player.score / 10)) + 1
-            //}
+            movePlayer({playerId: playerId, keyPressed: player.lastMove, params: { distance: durringTime * player.speed }})
         }
 
-        if (Object.getOwnPropertyNames(state.fruits).length < 20) {
+        if (Object.getOwnPropertyNames(state.fruits).length < MAXFRUITS) {
             addFruit({})
         }
 
+        updateBombs();
+
         notifyAll('startGameTimmer')
 
-        setTimeout(startGameTimer, 10)//-((1/(1 + Math.exp(-score)))*400))
+        setTimeout(startGameTimer, 10)
     }
 
     function loadQTree(){
@@ -331,6 +443,11 @@ export default function createGame() {
             let p = new PointObject(fruit.x, fruit.y, fruit)
             state.qTree.insert(p)
         }
+
+        for (let bomb of state.bombs) {
+            let p = new PointObject(bomb.x, bomb.y, bomb)
+            state.qTree.insert(p)
+        }
     }
 
     return {
@@ -345,260 +462,3 @@ export default function createGame() {
         loadQTree
     }
 }
-
-// export default function createGame() {
-//     const state = {
-//         players: {},
-//         fruits: {},
-//         screen: {
-//             width: 100,
-//             height: 100
-//         }
-//     }
-
-//     // Observer code 
-//     const observers = []
-
-//     function subscribe(observerFunction) {
-//         observers.push(observerFunction)
-//     }
-
-//     function notifyAll(command) {
-//         for (const observerFunction of observers) {
-//             observerFunction(command)
-//         }
-//     }
-//     // Observer
-
-//     function addPlayer(command) {
-//         const playerId = command.playerId
-//         const playerX = (command.playerX) ? command.playerX : Math.floor(Math.random() * (state.screen.width))
-//         const playerY = (command.playerY) ? command.playerY : Math.floor(Math.random() * (state.screen.height))
-//         const playerLastMove = (command.playerLastMove) ? command.playerLastMove : Object.keys(acceptedKeys)[Math.floor(Math.random() * Object.keys(acceptedKeys).length)]
-//         const playerMoveCount = (command.playerMoveCount) ? command.playerMoveCount : 0
-//         const playerScore = (command.playerScore) ? command.playerScore : 0
-//         const playerHistory = (command.playerHistory) ? command.playerHistory : []
-//         const playerMoved = true
-
-//         state.players[playerId] = {
-//             id: playerId,
-//             x: playerX,
-//             y: playerY,
-//             lastMove: playerLastMove, // last key pressed (Arrows)
-//             MoveCount: playerMoveCount,
-//             score: playerScore,
-//             history: playerHistory,
-//             moved: playerMoved
-//         }
-
-//         notifyAll({
-//             "type": 'addPlayer',
-//             "command": {
-//                 state: state
-//             }
-//         })
-//     }
-
-//     function removePlayer(command) {
-//         const playerId = command.playerId
-//         const player = state.players[playerId]
-//         if (player) {
-//             delete state.players[playerId]
-
-//             notifyAll({
-//                 "type": 'removePlayer',
-//                 "command": {
-//                     state: state
-//                 }
-//             })
-//         }
-//     }
-
-//     function addFruit(command) {
-//         const fruitId = (command.fruitId) ? command.fruitId : Math.floor(Math.random() * state.screen.width * state.screen.height)
-//         const fruitX = (command.fruitX) ? command.fruitX : Math.floor(Math.random() * (state.screen.width ))
-//         const fruitY = (command.fruitY) ? command.fruitY : Math.floor(Math.random() * (state.screen.height))
-
-//         state.fruits[fruitId] = {
-//             x: fruitX,
-//             y: fruitY
-//         }
-//     }
-
-//     function removeFruit(command) {
-//         const fruitId = command.fruitId
-
-//         delete state.fruits[fruitId]
-//     }
-
-//     function addScore(player) {
-//         player.score = player.score + 1
-
-//         if (player.history.length > 0) {
-//             player.history.push({ x: player.history[0].x, y: player.history[0].y })
-//         } else {
-//             player.history.push({ x: player.x, y: player.y })
-//         }
-//     }
-
-//     function updateHistory(player) {
-//         for (let i = player.history.length - 1; i >= 0; i--) {
-//             const histPos = i
-
-//             if (player.history[histPos-1]) {
-//                 player.history[histPos] = player.history[histPos-1]
-//             }
-//         }
-        
-//         if (player.history[0]) {
-//             player.history[0] = { x: player.x, y: player.y }
-//         }
-//     }
-
-//     const acceptedKeys = {
-//         ArrowUp(player) {
-//             if (player.moved && player.lastMove != 'ArrowDownMove') {
-//                 player.lastMove = 'ArrowUpMove'
-//                 player.moved = false
-//             }
-//         },
-//         ArrowUpMove(player) {
-//             updateHistory(player)
-
-//             player.y = (player.y - 1 < 0) ? state.screen.height - 1 : player.y - 1
-
-//             verifyPlayerColision(player)
-//             verifyFruitColision(player)
-//             player.moved = true
-//         },
-//         ArrowDown(player) {
-//             if (player.moved && player.lastMove != 'ArrowUpMove') {
-//                 player.lastMove = 'ArrowDownMove'
-//                 player.moved = false
-//             }
-//         },
-//         ArrowDownMove(player) {
-//             updateHistory(player)
-
-//             player.y = (player.y + 1 >= state.screen.height) ? 0 : player.y + 1
-
-//             verifyPlayerColision(player)
-//             verifyFruitColision(player)
-//             player.moved = true
-//         },
-//         ArrowLeft(player) {
-//             if (player.moved && player.lastMove != 'ArrowRightMove') {
-//                 player.lastMove = 'ArrowLeftMove'
-//                 player.moved = false
-//             }
-//         },
-//         ArrowLeftMove(player) {
-//             updateHistory(player)
-
-//             player.x = (player.x - 1 < 0) ? state.screen.width - 1 : player.x - 1
-            
-//             verifyPlayerColision(player)
-//             verifyFruitColision(player)
-//             player.moved = true
-//         },
-//         ArrowRight(player) {
-//             if (player.moved && player.lastMove != 'ArrowLeftMove') {
-//                 player.lastMove = 'ArrowRightMove'
-//                 player.moved = false
-//             }
-//         },
-//         ArrowRightMove(player) {
-//             updateHistory(player)
-
-//             player.x = (player.x + 1 >= state.screen.width) ? 0 : player.x + 1
-            
-//             verifyPlayerColision(player)
-//             verifyFruitColision(player)
-//             player.moved = true
-//         }
-//     }
-
-//     function movePlayer(command){
-//         const player = state.players[command.playerId]
-//         const keyPressed = command.keyPressed
-//         const moveFunction = acceptedKeys[keyPressed]
-    
-//         if (player && moveFunction) {
-//             moveFunction(player)
-//         }
-//     }
-    
-//     function verifyPlayerColision(player) {
-//         for (const play in state.players) {
-//             const player2 = state.players[play]
-
-//             for (const hist in player2.history) {
-//                 const hitory = player2.history[hist]
-//                 if (player) {
-//                     if (player.x == hitory.x && player.y == hitory.y) {
-//                         removePlayer({playerId: player.id})
-//                         break
-//                     }
-//                 }
-//             }
-            
-//             if (player) {
-//                 if (player != player2 && player.x == player2.x && player.y == player2.y) {
-//                     removePlayer( { playerId } )
-//                 }
-//             } else {
-//                 break
-//             }
-//         }
-//     }
-
-//     function verifyFruitColision(player) {
-//         if (!player) { return }
-
-//         for (const fruitId in state.fruits) {
-//             const fruit = state.fruits[fruitId]
-
-//             if (player.x == fruit.x && player.y == fruit.y) {
-//                 removeFruit({fruitId: fruitId})
-//                 addScore(player)
-//             }
-//         }
-//     }
-
-//     function startGameTimer() {
-//         for (const playerId in state.players) {
-//             const player = state.players[playerId]
-            
-//             if (player.MoveCount == Math.floor((player.score)/10)+1) {
-//                 movePlayer({playerId: playerId, keyPressed: player.lastMove})
-//                 player.MoveCount = 0
-//             } else {
-//                 player.MoveCount = player.MoveCount + 1 //(Math.floor(player.score / 10)) + 1
-//             }
-//         }
-
-//         if (Object.getOwnPropertyNames(state.fruits).length < 20) {
-//             addFruit({})
-//         }
-
-//         notifyAll({
-//             "type": 'startGameTimmer',
-//             "command": {
-//                 state: state
-//             }
-//         })
-
-//         setTimeout(startGameTimer, 100)//-((1/(1 + Math.exp(-score)))*400))
-//     }
-
-//     return {
-//         state,
-//         movePlayer,
-//         addPlayer,
-//         removePlayer,
-//         addFruit,
-//         removeFruit,
-//         startGameTimer,
-//         subscribe
-//     }
-// }
