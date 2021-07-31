@@ -20,16 +20,16 @@ export default function createGame() {
 
     const MINSPEED = 5
     const INISPEED = 20
-    const MAXFRUITS = 50
-    const TIMEBOMB = 5 // seconds
+    const MAXFRUITS = 100
+    const TIMEBOMB = 10 // seconds
 
     const state = {
         players: {},
         fruits: {},
         bombs: [],
         screen: {
-            width: 50,
-            height: 50
+            width: 60,
+            height: 60
         }
     }
 

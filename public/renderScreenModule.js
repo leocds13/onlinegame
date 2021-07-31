@@ -43,14 +43,14 @@ export default function renderScreen(screen, game, requestAnimationFrame) {
 
     for (const fruitId in game.state.fruits) {
         const fruit = game.state.fruits[fruitId]
-        context.fillStyle = '#aaa'
+        context.fillStyle = '#fff'
         context.globalAlpha = 1
         context.fillRect(fruit.x, fruit.y, 1, 1)
     }
 
     for (const b in game.state.bombs) {
         const bomb = game.state.bombs[b]
-        context.fillStyle = '#fff'
+        context.fillStyle = '#5c0606'
         context.globalAlpha = 1
         context.fillRect(bomb.x, bomb.y, 1, 1)
     }
