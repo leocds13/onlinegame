@@ -19,7 +19,6 @@ export default function createKeyboardListner(document) {
         const keyPressed = event.key
 
         const command = {
-            playerId: 'Player1',
             keyPressed
         }
         

@@ -1,6 +1,6 @@
 import express from 'express'
 import http from 'http'
-import createGame from './public/gameModule.js'
+import createGame from './assets/gameModule.js'
 import { Server } from 'socket.io'
 
 //const socketio = require('socket.io')
@@ -16,17 +16,16 @@ app.use(express.static('public'))
 const game = createGame()
 
 game.subscribe((command) => {
-    sockets.emit('updateState', command.command.state)
+    sockets.emit('updateState', command.command)
 })
 
-// game.addPlayer({playerId: 'Player1'})//, playerX: 0, playerY:0, playerScore: 0, playerHistory: []})
-// game.addPlayer({ playerId: 'teste'})
-
-game.startGameTimmer()
+game.startGameTimer()
 
 sockets.on('connection', (socket) => {
     const playerId = socket.id
     console.log(`> Player connected: ${playerId}`)
+
+    game.addPlayer( { playerId } )
 
     socket.on('disconnect', () => {
         console.log(`> Player disconnected: ${playerId}`)
@@ -34,9 +33,9 @@ sockets.on('connection', (socket) => {
 
     })
 
-    game.addPlayer( { playerId } )
-
-    //socket.emit('startState', game.state)
+    socket.on('movePlayer', (command) => {
+        game.movePlayer(command)
+    })
 })
 
 server.listen(port, () => {
