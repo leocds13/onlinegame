@@ -50,7 +50,7 @@ export default function renderScreen(screen, game, requestAnimationFrame) {
 
     for (const b in game.state.bombs) {
         const bomb = game.state.bombs[b]
-        context.fillStyle = '#5c0606'
+        context.fillStyle = '#fefefe'
         context.globalAlpha = 1
         context.fillRect(bomb.x, bomb.y, 1, 1)
     }

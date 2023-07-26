@@ -20,7 +20,7 @@ export default function createGame() {
 
     const MINSPEED = 5
     const INISPEED = 20
-    const MAXFRUITS = 100
+    const MAXFRUITS = 10
     const TIMEBOMB = 10 // seconds
 
     const state = {
@@ -240,6 +240,15 @@ export default function createGame() {
 
             player.lastMove = 'ArrowUpMove'
         },
+        w(player) {
+            if (player.history.length > 0) {
+                if (player.history[0].axie == 'y' && player.history[0].direction == -1) {
+                    return
+                }
+            }
+
+            player.lastMove = 'ArrowUpMove'
+        },
         ArrowUpMove(player, params) {
             player.fy = ((player.fy - params.distance) < 0) ? state.screen.height - params.distance + player.fy : player.fy - params.distance
 
@@ -252,6 +261,15 @@ export default function createGame() {
             player.moved = true
         },
         ArrowDown(player) {
+            if (player.history.length > 0) {
+                if (player.history[0].axie == 'y' && player.history[0].direction == 1) {
+                    return
+                }
+            }
+            
+            player.lastMove = 'ArrowDownMove'
+        },
+        s(player) {
             if (player.history.length > 0) {
                 if (player.history[0].axie == 'y' && player.history[0].direction == 1) {
                     return
@@ -279,6 +297,14 @@ export default function createGame() {
             }
             player.lastMove = 'ArrowLeftMove'
         },
+        a(player) {
+            if (player.history.length > 0) {
+                if (player.history[0].axie == 'x' && player.history[0].direction == -1) {
+                    return
+                }
+            }
+            player.lastMove = 'ArrowLeftMove'
+        },
         ArrowLeftMove(player, params) {
             player.fx = (player.fx - params.distance < 0) ? state.screen.width - params.distance + player.fx : player.fx - params.distance
             
@@ -291,6 +317,14 @@ export default function createGame() {
             player.moved = true
         },
         ArrowRight(player) {
+            if (player.history.length > 0) {
+                if (player.history[0].axie == 'x' && player.history[0].direction == 1) {
+                    return
+                }
+            }
+            player.lastMove = 'ArrowRightMove'
+        },
+        d(player) {
             if (player.history.length > 0) {
                 if (player.history[0].axie == 'x' && player.history[0].direction == 1) {
                     return
